@@ -1,0 +1,16 @@
+{
+  "name": "mairiehub",
+  "version": "3.3.0",
+  "description": "MairieHub — Cockpit du Maire de Morvillars",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  }
+}

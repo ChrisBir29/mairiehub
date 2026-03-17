@@ -1,0 +1,17 @@
+services:
+  mairiehub:
+    build: .
+    container_name: mairiehub
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - mairiehub-data:/app/data
+    environment:
+      - MAIRE_PIN=${MAIRE_PIN:-2906}
+      - ADJOINT_PIN=${ADJOINT_PIN:-9012}
+      - SECRET_KEY=${SECRET_KEY:-mairiehub-morvillars-2026-secret}
+      - NODE_ENV=production
+volumes:
+  mairiehub-data:
+    driver: local
