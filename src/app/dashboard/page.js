@@ -755,52 +755,92 @@ function AgendaScreen({ data, setData }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [evtForm, setEvtForm] = useState({ title: "", time: "09:00", duration: 60, type: "reunion", location: "" });
+  const [gcal, setGcal] = useState({ connected: false, events: [], loading: true });
+  const [syncing, setSyncing] = useState(false);
 
-  const getWeekDays = (offset) => {
-    const start = new Date();
+  useEffect(function() {
+    fetch('/api/google/sync')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { setGcal({ connected: d.connected, events: d.events || [], loading: false }); })
+      .catch(function() { setGcal({ connected: false, events: [], loading: false }); });
+  }, [syncing]);
+
+  useEffect(function() {
+    if (typeof window !== 'undefined') {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('gcal') === 'success') {
+        setSyncing(function(s) { return !s; });
+        window.history.replaceState({}, '', '/dashboard');
+      }
+    }
+  }, []);
+
+  const syncNow = function() { setSyncing(function(s) { return !s; }); };
+
+  const getWeekDays = function(offset) {
+    var start = new Date();
     start.setDate(start.getDate() - start.getDay() + 1 + offset * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
+    return Array.from({ length: 7 }, function(_, i) {
+      var d = new Date(start); d.setDate(start.getDate() + i); return d;
     });
   };
 
-  const weekDays = getWeekDays(weekOffset);
-  const selStr = toDS(selectedDate);
-  const allAgenda = data.agenda || [];
-  const events = allAgenda.filter((e) => e.date === selStr).sort((a, b) => a.time.localeCompare(b.time));
-  const allEvents = allAgenda;
+  var weekDays = getWeekDays(weekOffset);
+  var selStr = toDS(selectedDate);
+  var allAgenda = data.agenda || [];
+  var gcalEventsForDay = gcal.events.filter(function(e) { return e.date === selStr; });
+  var localEvents = allAgenda.filter(function(e) { return e.date === selStr; });
+  var allDayEvents = localEvents.concat(gcalEventsForDay.filter(function(g) {
+    return !localEvents.some(function(l) { return l.googleId === g.googleId; });
+  })).sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
+  var allEvtDates = {};
+  allAgenda.forEach(function(e) { allEvtDates[e.date] = true; });
+  gcal.events.forEach(function(e) { allEvtDates[e.date] = true; });
 
-  const addEvent = () => {
+  var addEvent = function() {
     if (!evtForm.title) return;
-    const newEvt = { id: Date.now(), ...evtForm, date: selStr };
-    setData({ ...data, agenda: [...allAgenda, newEvt] });
+    var newEvt = { id: Date.now(), title: evtForm.title, time: evtForm.time, duration: evtForm.duration, type: evtForm.type, location: evtForm.location, date: selStr };
+    setData(Object.assign({}, data, { agenda: allAgenda.concat([newEvt]) }));
+    if (gcal.connected) {
+      fetch('/api/google/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newEvt) }).catch(function() {});
+    }
     setEvtForm({ title: "", time: "09:00", duration: 60, type: "reunion", location: "" });
     setShowAdd(false);
   };
 
-  const deleteEvent = (id) => {
-    setData({ ...data, agenda: allAgenda.filter((e) => e.id !== id) });
+  var deleteEvent = function(id) {
+    setData(Object.assign({}, data, { agenda: allAgenda.filter(function(e) { return e.id !== id; }) }));
   };
 
   return (
     <div style={{ padding: "12px 14px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Agenda</h1>
-        <button onClick={() => setShowAdd(true)} style={{ background: T.primary, color: "#fff", border: "none", borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>+ RDV</button>
+        <div style={{ display: "flex", gap: 6 }}>
+          {gcal.connected && <button onClick={syncNow} style={{ background: T.successBg, color: T.success, border: "none", borderRadius: 10, padding: "8px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>🔄 Sync</button>}
+          <button onClick={function() { setShowAdd(true); }} style={{ background: T.primary, color: "#fff", border: "none", borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>+ RDV</button>
+        </div>
       </div>
 
+      {!gcal.loading && !gcal.connected && (
+        <Card style={{ padding: 10, marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 24, flexShrink: 0 }}>📅</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>Google Calendar</div>
+            <div style={{ fontSize: 11, color: T.text3 }}>Synchronise tes RDV</div>
+          </div>
+          <a href="/api/google" style={{ background: "#4285F4", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "none" }}>Connecter</a>
+        </Card>
+      )}
+      {gcal.connected && <div style={{ fontSize: 11, color: T.success, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}><span>✅ Google Calendar connecté</span><span style={{ color: T.text3 }}>· {gcal.events.length} événements</span></div>}
+
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
-        <button onClick={() => setWeekOffset((w) => w - 1)} style={{ background: T.bg, border: "none", borderRadius: 8, width: 28, height: 28, cursor: "pointer", fontSize: 14, flexShrink: 0 }}>‹</button>
+        <button onClick={function() { setWeekOffset(function(w) { return w - 1; }); }} style={{ background: T.bg, border: "none", borderRadius: 8, width: 28, height: 28, cursor: "pointer", fontSize: 14, flexShrink: 0 }}>‹</button>
         <div style={{ flex: 1, display: "flex", gap: 2 }}>
-          {weekDays.map((d) => {
-            const ds = toDS(d);
-            const isSel = ds === selStr;
-            const isToday = ds === todayStr;
-            const hasEvts = allEvents.some((e) => e.date === ds);
+          {weekDays.map(function(d) {
+            var ds = toDS(d); var isSel = ds === selStr; var isToday = ds === todayStr; var hasEvts = !!allEvtDates[ds];
             return (
-              <button key={ds} onClick={() => setSelectedDate(new Date(d))} style={{ flex: 1, padding: "6px 0", background: isSel ? T.primary : "transparent", color: isSel ? "#fff" : T.text, border: isToday && !isSel ? "2px solid " + T.primary : "none", borderRadius: 8, cursor: "pointer", textAlign: "center", fontFamily: "inherit", minWidth: 0 }}>
+              <button key={ds} onClick={function() { setSelectedDate(new Date(d)); }} style={{ flex: 1, padding: "6px 0", background: isSel ? T.primary : "transparent", color: isSel ? "#fff" : T.text, border: isToday && !isSel ? "2px solid " + T.primary : "none", borderRadius: 8, cursor: "pointer", textAlign: "center", fontFamily: "inherit", minWidth: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.7 }}>{dayN[d.getDay()]}</div>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{d.getDate()}</div>
                 {hasEvts && <div style={{ width: 4, height: 4, borderRadius: 99, background: isSel ? "#fff" : T.accent, margin: "2px auto 0" }} />}
@@ -808,45 +848,45 @@ function AgendaScreen({ data, setData }) {
             );
           })}
         </div>
-        <button onClick={() => setWeekOffset((w) => w + 1)} style={{ background: T.bg, border: "none", borderRadius: 8, width: 28, height: 28, cursor: "pointer", fontSize: 14, flexShrink: 0 }}>›</button>
+        <button onClick={function() { setWeekOffset(function(w) { return w + 1; }); }} style={{ background: T.bg, border: "none", borderRadius: 8, width: 28, height: 28, cursor: "pointer", fontSize: 14, flexShrink: 0 }}>›</button>
       </div>
 
-      <p style={{ fontSize: 13, fontWeight: 600, color: T.text2, margin: "0 0 10px" }}>
-        {dayN[selectedDate.getDay()]} {selectedDate.getDate()} {monthN[selectedDate.getMonth()]}
-        {selStr === todayStr && <span style={{ color: T.accent, marginLeft: 6 }}>— Aujourd'hui</span>}
-      </p>
+      <p style={{ fontSize: 13, fontWeight: 600, color: T.text2, margin: "0 0 10px" }}>{dayN[selectedDate.getDay()]} {selectedDate.getDate()} {monthN[selectedDate.getMonth()]}{selStr === todayStr && <span style={{ color: T.accent, marginLeft: 6 }}>— Aujourd&apos;hui</span>}</p>
 
-      {events.length === 0 ? (
+      {allDayEvents.length === 0 ? (
         <Card style={{ textAlign: "center", padding: 24 }}>
           <div style={{ fontSize: 32 }}>📅</div>
           <p style={{ color: T.text2, margin: "6px 0 0", fontSize: 13 }}>Aucun événement</p>
-          <button onClick={() => setShowAdd(true)} style={{ marginTop: 10, background: T.primaryFaded, color: T.primary, border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>+ Ajouter un RDV</button>
+          <button onClick={function() { setShowAdd(true); }} style={{ marginTop: 10, background: T.primaryFaded, color: T.primary, border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>+ Ajouter un RDV</button>
         </Card>
-      ) : events.map((e) => (
-        <Card key={e.id} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10 }}>
+      ) : allDayEvents.map(function(e, idx) {
+        var isGoogle = e.source === 'google';
+        return (
+        <Card key={e.id || e.googleId || idx} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10 }}>
           <div style={{ minWidth: 44, textAlign: "center", flexShrink: 0 }}>
             <span style={{ fontSize: 14, fontWeight: 700 }}>{e.time}</span><br />
             <span style={{ fontSize: 10, color: T.text3 }}>{e.duration}m</span>
           </div>
-          <div style={{ width: 3, borderRadius: 3, background: evtColors[e.type] || evtColors.reunion, flexShrink: 0 }} />
+          <div style={{ width: 3, borderRadius: 3, background: isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion), flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{e.title}</div>
-            <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>📍 {e.location}</div>
-            {e.reunionId && <div style={{ fontSize: 10, color: T.info, marginTop: 2 }}>📋 Lié à une réunion de municipalité</div>}
+            {e.location && <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>📍 {e.location}</div>}
+            {isGoogle && <div style={{ fontSize: 10, color: "#4285F4", marginTop: 2 }}>📅 Google Calendar</div>}
+            {e.reunionId && <div style={{ fontSize: 10, color: T.info, marginTop: 2 }}>📋 Réunion de municipalité</div>}
           </div>
-          {!e.reunionId && (
-            <button onClick={() => deleteEvent(e.id)} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer", flexShrink: 0, alignSelf: "flex-start" }}>✕</button>
+          {!e.reunionId && !isGoogle && (
+            <button onClick={function() { deleteEvent(e.id); }} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer", flexShrink: 0, alignSelf: "flex-start" }}>✕</button>
           )}
         </Card>
-      ))}
+        );
+      })}
 
-      {/* Add Event Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Nouveau rendez-vous">
+      <Modal open={showAdd} onClose={function() { setShowAdd(false); }} title="Nouveau rendez-vous">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input value={evtForm.title} onChange={(e) => setEvtForm({ ...evtForm, title: e.target.value })} placeholder="Titre du RDV" style={inputStyle} autoFocus />
+          <input value={evtForm.title} onChange={function(e) { setEvtForm(Object.assign({}, evtForm, { title: e.target.value })); }} placeholder="Titre du RDV" style={inputStyle} autoFocus />
           <div style={{ display: "flex", gap: 8 }}>
-            <input type="time" value={evtForm.time} onChange={(e) => setEvtForm({ ...evtForm, time: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-            <select value={evtForm.type} onChange={(e) => setEvtForm({ ...evtForm, type: e.target.value })} style={{ ...inputStyle, flex: 1, background: "#fff" }}>
+            <input type="time" value={evtForm.time} onChange={function(e) { setEvtForm(Object.assign({}, evtForm, { time: e.target.value })); }} style={Object.assign({}, inputStyle, { flex: 1 })} />
+            <select value={evtForm.type} onChange={function(e) { setEvtForm(Object.assign({}, evtForm, { type: e.target.value })); }} style={Object.assign({}, inputStyle, { flex: 1, background: "#fff" })}>
               <option value="reunion">Réunion</option>
               <option value="commission">Commission</option>
               <option value="permanence">Permanence</option>
@@ -856,9 +896,10 @@ function AgendaScreen({ data, setData }) {
               <option value="appel">Appel</option>
             </select>
           </div>
-          <input value={evtForm.location} onChange={(e) => setEvtForm({ ...evtForm, location: e.target.value })} placeholder="Lieu" style={inputStyle} />
+          <input value={evtForm.location} onChange={function(e) { setEvtForm(Object.assign({}, evtForm, { location: e.target.value })); }} placeholder="Lieu" style={inputStyle} />
           <div style={{ fontSize: 12, color: T.text3, padding: "4px 0" }}>
             📅 Sera ajouté le {fmtDate(selStr)}
+            {gcal.connected && <span style={{ color: "#4285F4", marginLeft: 6 }}>+ Google Calendar</span>}
           </div>
           <button onClick={addEvent} style={btnStyle}>Ajouter</button>
         </div>
