@@ -443,6 +443,12 @@ function ReunionsScreen({ data, setData }) {
     setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, status: x.status === "planifiee" ? "terminee" : "planifiee" } : x) });
   };
 
+  const deleteReunion = (id) => {
+    if (!confirm("Supprimer cette réunion et ses actions ?")) return;
+    setData({ ...data, reunions: reunions.filter((x) => x.id !== id), actions: (data.actions || []).filter((a) => a.reunionId !== id), agenda: (data.agenda || []).filter((a) => a.reunionId !== id) });
+    setSelId(null);
+  };
+
   const updateParticipants = (p) => {
     setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, participants: p } : x) });
   };
@@ -562,6 +568,7 @@ function ReunionsScreen({ data, setData }) {
         <button onClick={toggleStatus} style={{ background: r.status === "planifiee" ? T.successBg : T.bg, color: r.status === "planifiee" ? T.success : T.text3, border: "none", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           {r.status === "planifiee" ? "✅ Clôturer" : "↩ Rouvrir"}
         </button>
+        <button onClick={() => deleteReunion(selId)} style={{ background: T.errorBg, color: T.error, border: "none", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>🗑️ Supprimer</button>
       </div>
 
       <div style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px" }}>📋 Ordre du jour</div>
@@ -965,10 +972,17 @@ export default function MairieHub() {
 
   const isAdjoint = role === 'adjoint';
   const tabs = isAdjoint
-    ? [{ emoji: "📅", label: "Agenda" }]
+    ? [{ emoji: "📋", label: "Réunions" }, { emoji: "🎯", label: "Actions" }, { emoji: "🏛️", label: "Commissions" }]
     : [{ emoji: "📅", label: "Agenda" }, { emoji: "📋", label: "Réunions" }, { emoji: "🎯", label: "Actions" }, { emoji: "🏛️", label: "Commissions" }];
 
   const overdueActions = (data.actions || []).filter((a) => a.status !== "fait" && isOverdue(a.echeance)).length;
+
+  // Notifications: upcoming reunions in next 7 days
+  const upcomingReunions = (data.reunions || []).filter((r) => {
+    const d = daysUntil(r.date);
+    return r.status === "planifiee" && d !== null && d >= 0 && d <= 7;
+  });
+  const [showNotif, setShowNotif] = useState(true);
 
   return (
     <div style={{ minHeight: "100dvh", background: T.bg, fontFamily: "'Inter', -apple-system, sans-serif", maxWidth: "100vw", overflow: "hidden" }}>
@@ -994,8 +1008,23 @@ export default function MairieHub() {
 
         {/* Content */}
         <div style={{ paddingBottom: 80, minHeight: "calc(100dvh - 90px)", overflowX: "hidden" }}>
+          {/* Notification banner for upcoming reunions */}
+          {showNotif && upcomingReunions.length > 0 && (
+            <div style={{ margin: "8px 14px", padding: 10, background: T.infoBg, borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>🔔</span>
+              <div style={{ flex: 1, fontSize: 12, color: T.info }}>
+                <b>{upcomingReunions.length} réunion{upcomingReunions.length > 1 ? "s" : ""}</b> dans les 7 prochains jours
+              </div>
+              <button onClick={() => setShowNotif(false)} style={{ background: "none", border: "none", color: T.text3, fontSize: 14, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+
           {isAdjoint ? (
-            <AgendaScreen data={data} setData={setData} />
+            <>
+              {tab === 0 && <ReunionsScreen data={data} setData={setData} />}
+              {tab === 1 && <ActionsScreen data={data} setData={setData} />}
+              {tab === 2 && <CommissionsScreen data={data} setData={setData} />}
+            </>
           ) : (
             <>
               {tab === 0 && <AgendaScreen data={data} setData={setData} />}
@@ -1011,7 +1040,7 @@ export default function MairieHub() {
           <div style={{ maxWidth: 500, margin: "0 auto", display: "flex", justifyContent: "space-around", padding: "6px 0 2px" }}>
             {tabs.map((t, i) => {
               const active = tab === i;
-              const showBadge = !isAdjoint && i === 2 && overdueActions > 0;
+              const showBadge = overdueActions > 0 && ((isAdjoint && i === 1) || (!isAdjoint && i === 2));
               return (
                 <button key={i} onClick={() => setTab(i)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "4px 4px", background: "none", border: "none", cursor: "pointer", color: active ? T.primary : T.text3, fontFamily: "inherit", position: "relative", WebkitTapHighlightColor: "transparent", minWidth: 0 }}>
                   <span style={{ fontSize: 17, transform: active ? "scale(1.1)" : "scale(1)", transition: "transform 0.15s" }}>{t.emoji}</span>
