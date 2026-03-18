@@ -927,6 +927,7 @@ export default function MairieHub() {
   const [role, setRole] = useState(null);
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showNotif, setShowNotif] = useState(true);
   const saveTimer = useRef(null);
 
   // Fetch data from API
@@ -982,7 +983,6 @@ export default function MairieHub() {
     const d = daysUntil(r.date);
     return r.status === "planifiee" && d !== null && d >= 0 && d <= 7;
   });
-  const [showNotif, setShowNotif] = useState(true);
 
   return (
     <div style={{ minHeight: "100dvh", background: T.bg, fontFamily: "'Inter', -apple-system, sans-serif", maxWidth: "100vw", overflow: "hidden" }}>
