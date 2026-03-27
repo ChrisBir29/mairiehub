@@ -113,7 +113,56 @@ function ParticipantPicker({ selected, membres, onChange, onAdd }) {
   );
 }
 
-/* ═══ DATA ═══ */
+/* ═══ FILE ATTACH ═══ */
+const fileIcons = { 'application/pdf': '📄', 'application/msword': '📝', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '📝', 'text/html': '🌐', 'image/jpeg': '🖼️', 'image/png': '🖼️' };
+function FileAttach({ files, onFilesChange }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        onFilesChange([...(files || []), data.file]);
+      } else {
+        alert(data.error || 'Erreur upload');
+      }
+    } catch (err) { alert('Erreur upload'); }
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const removeFile = (fileId) => {
+    onFilesChange((files || []).filter((f) => f.id !== fileId));
+  };
+
+  return (
+    <div>
+      {(files || []).length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 4 }}>
+          {files.map((f) => (
+            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, background: T.bg, padding: "3px 6px", borderRadius: 5 }}>
+              <span>{fileIcons[f.type] || '📎'}</span>
+              <a href={"/api/upload?f=" + f.filename} target="_blank" rel="noopener noreferrer" style={{ color: T.primaryLight, textDecoration: "none", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</a>
+              <span style={{ color: T.text3, fontSize: 9 }}>{Math.round(f.size / 1024)}Ko</span>
+              <button onClick={() => removeFile(f.id)} style={{ background: "none", border: "none", color: T.error, fontSize: 10, cursor: "pointer", padding: 0 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.html,.xls,.xlsx,.jpg,.jpeg,.png" onChange={handleUpload} style={{ display: "none" }} />
+      <button onClick={() => inputRef.current?.click()} disabled={uploading} style={{ fontSize: 10, fontWeight: 600, color: T.info, background: T.infoBg, border: "none", borderRadius: 5, padding: "3px 7px", cursor: "pointer" }}>
+        {uploading ? "⏳..." : "📎 Document"}
+      </button>
+    </div>
+  );
+}
 const INIT_DATA = {
   membres: ["Christian", "Chantal", "Sophie (DGS)", "Bruno", "Virginie", "Francine", "Mickaël", "Stéphanie", "Michelle", "Michèle", "Manuela", "Daniel", "Quentin", "Élisabeth", "Françoise", "Anaïs", "Amin", "Sébastien", "Frédéric"],
   commissions: [
@@ -216,6 +265,10 @@ function CommissionsScreen({ data, setData }) {
   };
   const deleteProjet = (pid) => {
     updateCommission({ projets: (selected.projets || []).filter((p) => p.id !== pid) });
+  };
+  const updateProjetFiles = (pid, files) => {
+    const projets = (selected.projets || []).map((p) => p.id === pid ? { ...p, files: files } : p);
+    updateCommission({ projets });
   };
 
   const projetStatusLabel = { a_faire: "À faire", en_cours: "En cours", fait: "Terminé" };
@@ -340,6 +393,9 @@ function CommissionsScreen({ data, setData }) {
                         <button key={s} onClick={() => updateProjet(p.id, { status: s })} style={{ fontSize: 10, fontWeight: 600, border: "none", borderRadius: 5, padding: "3px 8px", cursor: "pointer", background: p.status === s ? projetStatusBg[s] : T.bg, color: p.status === s ? projetStatusColor[s] : T.text3 }}>{projetStatusLabel[s]}</button>
                       ))}
                     </div>
+                    <div style={{ marginTop: 6 }}>
+                      <FileAttach files={p.files} onFilesChange={(files) => updateProjetFiles(p.id, files)} />
+                    </div>
                   </Card>
                 );
               })}
@@ -382,6 +438,8 @@ function ReunionsScreen({ data, setData }) {
   const [showPart, setShowPart] = useState(false);
   const [showEditPt, setShowEditPt] = useState(null);
   const [editPtTitle, setEditPtTitle] = useState("");
+  const [showEditReunion, setShowEditReunion] = useState(false);
+  const [editReunionForm, setEditReunionForm] = useState({ title: "", date: "", time: "", location: "" });
   const [form, setForm] = useState({ title: "", date: "", time: "18:00", location: "Bureau du maire", participants: ["Christian", "Chantal", "Sophie (DGS)", "Julien"] });
   const [ptForm, setPtForm] = useState({ title: "" });
   const [actForm, setActForm] = useState({ title: "", responsable: "Christian", echeance: "", priority: "moyenne" });
@@ -439,6 +497,10 @@ function ReunionsScreen({ data, setData }) {
     setShowEditPt(null);
   };
 
+  const updatePointFiles = (ptId, files) => {
+    setData({ ...data, reunions: reunions.map((x) => x.id !== selId ? x : { ...x, points: x.points.map((p) => p.id === ptId ? { ...p, files: files } : p) }) });
+  };
+
   const toggleStatus = () => {
     setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, status: x.status === "planifiee" ? "terminee" : "planifiee" } : x) });
   };
@@ -447,6 +509,18 @@ function ReunionsScreen({ data, setData }) {
     if (!confirm("Supprimer cette réunion et ses actions ?")) return;
     setData({ ...data, reunions: reunions.filter((x) => x.id !== id), actions: (data.actions || []).filter((a) => a.reunionId !== id), agenda: (data.agenda || []).filter((a) => a.reunionId !== id) });
     setSelId(null);
+  };
+
+  const openEditReunion = () => {
+    if (!r) return;
+    setEditReunionForm({ title: r.title, date: r.date, time: r.time, location: r.location });
+    setShowEditReunion(true);
+  };
+
+  const saveEditReunion = () => {
+    if (!editReunionForm.title || !editReunionForm.date) return;
+    setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, title: editReunionForm.title, date: editReunionForm.date, time: editReunionForm.time, location: editReunionForm.location } : x), agenda: (data.agenda || []).map((a) => a.reunionId === selId ? { ...a, title: editReunionForm.title, date: editReunionForm.date, time: editReunionForm.time, location: editReunionForm.location } : a) });
+    setShowEditReunion(false);
   };
 
   const updateParticipants = (p) => {
@@ -565,6 +639,7 @@ function ReunionsScreen({ data, setData }) {
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={() => setShowPt(true)} style={{ background: T.primary, color: "#fff", border: "none", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>+ Point</button>
+        <button onClick={openEditReunion} style={{ background: T.accentLight, color: T.accent, border: "none", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>✏️ Modifier</button>
         <button onClick={toggleStatus} style={{ background: r.status === "planifiee" ? T.successBg : T.bg, color: r.status === "planifiee" ? T.success : T.text3, border: "none", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           {r.status === "planifiee" ? "✅ Clôturer" : "↩ Rouvrir"}
         </button>
@@ -586,6 +661,9 @@ function ReunionsScreen({ data, setData }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{pt.title}</div>
                     {pt.notes && <div style={{ marginTop: 5, padding: 7, background: T.bg, borderRadius: 7, fontSize: 12, color: T.text2, lineHeight: 1.4, whiteSpace: "pre-line", wordBreak: "break-word" }}>📝 {pt.notes}</div>}
+                    <div style={{ marginTop: 4 }}>
+                      <FileAttach files={pt.files} onFilesChange={(files) => updatePointFiles(pt.id, files)} />
+                    </div>
                     <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
                       <button onClick={() => openEditPt(pt)} style={{ fontSize: 10, fontWeight: 600, color: T.accent, background: T.accentLight, border: "none", borderRadius: 5, padding: "3px 7px", cursor: "pointer" }}>✏️ Modifier</button>
                       <button onClick={() => openNotes(pt)} style={{ fontSize: 10, fontWeight: 600, color: T.primaryLight, background: T.primaryFaded, border: "none", borderRadius: 5, padding: "3px 7px", cursor: "pointer" }}>📝 Notes</button>
@@ -673,6 +751,18 @@ function ReunionsScreen({ data, setData }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input value={editPtTitle} onChange={(e) => setEditPtTitle(e.target.value)} placeholder="Titre du point" style={inputStyle} autoFocus />
           <button onClick={saveEditPt} style={btnStyle}>Enregistrer</button>
+        </div>
+      </Modal>
+
+      <Modal open={showEditReunion} onClose={() => setShowEditReunion(false)} title="Modifier la réunion">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input value={editReunionForm.title} onChange={(e) => setEditReunionForm({ ...editReunionForm, title: e.target.value })} placeholder="Titre" style={inputStyle} autoFocus />
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="date" value={editReunionForm.date} onChange={(e) => setEditReunionForm({ ...editReunionForm, date: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+            <input type="time" value={editReunionForm.time} onChange={(e) => setEditReunionForm({ ...editReunionForm, time: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+          </div>
+          <input value={editReunionForm.location} onChange={(e) => setEditReunionForm({ ...editReunionForm, location: e.target.value })} placeholder="Lieu" style={inputStyle} />
+          <button onClick={saveEditReunion} style={btnStyle}>Enregistrer</button>
         </div>
       </Modal>
     </div>
@@ -871,8 +961,7 @@ function AgendaScreen({ data, setData }) {
         return (
         <Card key={e.id || e.googleId || idx} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10 }}>
           <div style={{ minWidth: 44, textAlign: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{e.time}</span><br />
-            <span style={{ fontSize: 10, color: T.text3 }}>{e.duration}m</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{e.time}</span>
           </div>
           <div style={{ width: 3, borderRadius: 3, background: isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion), flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
