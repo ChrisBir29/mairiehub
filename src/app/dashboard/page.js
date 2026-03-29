@@ -457,7 +457,12 @@ function ReunionsScreen({ data, setData }) {
     const newR = { id: Date.now(), ...form, status: "planifiee", points: [] };
     const newAgendaEvt = { id: Date.now() + 1, title: form.title, time: form.time, duration: 90, type: "reunion", location: form.location, date: form.date, reunionId: newR.id };
     setData({ ...data, reunions: [...reunions, newR], agenda: [...(data.agenda || []), newAgendaEvt] });
-    setForm({ title: "", date: "", time: "18:00", location: "Bureau du maire", participants: ["Christian", "Chantal", "Sophie (DGS)", "Julien"] });
+    // Send push notification only if other participants than Christian
+    const otherParticipants = form.participants.filter(function(p) { return p !== "Christian"; });
+    if (otherParticipants.length > 0) {
+      fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send', payload: { title: '🏛️ Nouvelle réunion', body: form.title + ' — ' + fmtDateFull(form.date) + ' à ' + form.time + '\nParticipants : ' + otherParticipants.join(', '), url: '/dashboard' } }) }).catch(function() {});
+    }
+    setForm({ title: "", date: "", time: "18:00", location: "Bureau du maire", participants: ["Christian", "Chantal", "Sophie (DGS)"] });
     setShowNew(false);
     setSelId(newR.id);
   };
@@ -1030,6 +1035,33 @@ export default function MairieHub() {
     }).catch(() => { router.push('/'); });
   }, [router]);
 
+  // Register push notifications
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBanner, setPushBanner] = useState(false);
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        return reg.pushManager.getSubscription();
+      }).then(function(sub) {
+        if (sub) { setPushEnabled(true); } else { setPushBanner(true); }
+      }).catch(function() {});
+    }
+  }, []);
+
+  const enablePush = () => {
+    if (!('serviceWorker' in navigator)) return;
+    Notification.requestPermission().then(function(perm) {
+      if (perm !== 'granted') return;
+      navigator.serviceWorker.ready.then(function(reg) {
+        fetch('/api/push').then(function(r) { return r.json(); }).then(function(d) {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: d.publicKey });
+        }).then(function(sub) {
+          return fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'subscribe', subscription: sub.toJSON() }) });
+        }).then(function() { setPushEnabled(true); setPushBanner(false); });
+      });
+    });
+  };
+
   // Save to API with debounce
   const setData = useCallback((newData) => {
     setDataLocal(newData);
@@ -1106,6 +1138,21 @@ export default function MairieHub() {
               </div>
               <button onClick={() => setShowNotif(false)} style={{ background: "none", border: "none", color: T.text3, fontSize: 14, cursor: "pointer" }}>✕</button>
             </div>
+          )}
+
+          {/* Push notification banner */}
+          {pushBanner && !pushEnabled && (
+            <div style={{ margin: "8px 14px", padding: 10, background: T.accentLight, borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>📲</span>
+              <div style={{ flex: 1, fontSize: 12, color: T.accent }}>
+                <b>Recevoir les notifications</b> de nouvelles réunions
+              </div>
+              <button onClick={enablePush} style={{ background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Activer</button>
+              <button onClick={() => setPushBanner(false)} style={{ background: "none", border: "none", color: T.text3, fontSize: 14, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+          {pushEnabled && !pushBanner && (
+            <div style={{ margin: "4px 14px", fontSize: 10, color: T.success }}>📲 Notifications activées</div>
           )}
 
           {isAdjoint ? (
