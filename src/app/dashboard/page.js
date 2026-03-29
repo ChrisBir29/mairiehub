@@ -507,7 +507,20 @@ function ReunionsScreen({ data, setData }) {
   };
 
   const toggleStatus = () => {
-    setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, status: x.status === "planifiee" ? "terminee" : "planifiee" } : x) });
+    const newStatus = r.status === "planifiee" ? "terminee" : "planifiee";
+    setData({ ...data, reunions: reunions.map((x) => x.id === selId ? { ...x, status: newStatus } : x) });
+    // Sync to Notion when closing
+    if (newStatus === "terminee") {
+      const reunionActions = (data.actions || []).filter((a) => a.reunionId === selId);
+      fetch('/api/notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reunion: { ...r, status: 'terminee' }, actions: reunionActions })
+      }).then(function(res) { return res.json(); }).then(function(d) {
+        if (d.success) { alert('✅ Réunion archivée dans Notion !'); }
+        else { console.error('Notion sync error:', d.error); }
+      }).catch(function(err) { console.error('Notion sync failed:', err); });
+    }
   };
 
   const deleteReunion = (id) => {
