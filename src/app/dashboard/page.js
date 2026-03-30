@@ -238,7 +238,7 @@ function CommissionsScreen({ data, setData }) {
   const [showEdit, setShowEdit] = useState(false);
   const [showAddProjet, setShowAddProjet] = useState(false);
   const [projetForm, setProjetForm] = useState({ title: "", description: "", responsable: "", echeance: "", status: "a_faire" });
-  const [detailTab, setDetailTab] = useState("info"); // info | projets
+  const [detailTab, setDetailTab] = useState("fdr"); // fdr | projets
   const comms = data.commissions || [];
   const selected = selectedId ? comms.find((c) => c.id === selectedId) : null;
 
@@ -286,7 +286,7 @@ function CommissionsScreen({ data, setData }) {
             const days = daysUntil(cm.prochaine);
             const nbProjets = (cm.projets || []).filter((p) => p.status !== "fait").length;
             return (
-              <Card key={cm.id} onClick={() => { setSelectedId(cm.id); setDetailTab("info"); }} style={{ padding: 12 }}>
+              <Card key={cm.id} onClick={() => { setSelectedId(cm.id); setDetailTab("fdr"); }} style={{ padding: 12 }}>
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: cm.color + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{cm.emoji}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -324,35 +324,38 @@ function CommissionsScreen({ data, setData }) {
       </div>
       <p style={{ fontSize: 13, color: T.text2, lineHeight: 1.5, margin: "0 0 12px" }}>{selected.description}</p>
 
-      {/* Tabs Info / Projets */}
+      {/* Members always visible */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+        {selected.membres.map((m) => (
+          <span key={m} style={{ fontSize: 11, background: m === selected.president ? selected.color + "22" : T.bg, color: m === selected.president ? selected.color : T.text2, padding: "3px 8px", borderRadius: 99, fontWeight: m === selected.president ? 600 : 400 }}>
+            {m === selected.president ? "👑 " : ""}{m}
+          </span>
+        ))}
+        <button onClick={() => setShowEdit(true)} style={{ fontSize: 11, color: T.primaryLight, background: T.primaryFaded, border: "none", borderRadius: 99, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>✏️</button>
+      </div>
+
+      {/* Tabs Feuille de route / Projets */}
       <div style={{ display: "flex", gap: 0, marginBottom: 14, borderRadius: 10, overflow: "hidden", border: "1px solid " + T.border }}>
-        {[["info", "ℹ️ Infos"], ["projets", "📂 Projets"]].map(([k, l]) => (
+        {[["fdr", "📑 Feuille de route"], ["projets", "📂 Projets"]].map(([k, l]) => (
           <button key={k} onClick={() => setDetailTab(k)} style={{ flex: 1, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "none", background: detailTab === k ? T.primary : T.surface, color: detailTab === k ? "#fff" : T.text2 }}>{l}</button>
         ))}
       </div>
 
-      {/* TAB INFO */}
-      {detailTab === "info" && (
+      {/* TAB FEUILLE DE ROUTE */}
+      {detailTab === "fdr" && (
         <>
-          <Card style={{ padding: 12, marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>📅 Prochaine réunion</div>
-            <input type="date" value={selected.prochaine || ""} onChange={(e) => updateProchaine(e.target.value)} style={{ ...inputStyle, fontSize: 14 }} />
-            {selected.prochaine && <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{fmtDate(selected.prochaine)}</div>}
-          </Card>
-
-          <Card style={{ padding: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>👥 Membres ({selected.membres.length})</div>
-              <button onClick={() => setShowEdit(true)} style={{ fontSize: 11, color: T.primaryLight, background: T.primaryFaded, border: "none", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>Modifier</button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {selected.membres.map((m) => (
-                <span key={m} style={{ fontSize: 12, background: m === selected.president ? selected.color + "22" : T.bg, color: m === selected.president ? selected.color : T.text2, padding: "4px 10px", borderRadius: 99, fontWeight: m === selected.president ? 600 : 400 }}>
-                  {m === selected.president ? "👑 " : ""}{m}
-                </span>
-              ))}
-            </div>
-          </Card>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📑 Feuille de route</div>
+          <p style={{ fontSize: 12, color: T.text3, marginBottom: 12, lineHeight: 1.5 }}>
+            Documents de référence de la commission : feuille de route, objectifs, planning, comptes rendus...
+          </p>
+          <FileAttach files={selected.fdrFiles} onFilesChange={(files) => updateCommission({ fdrFiles: files })} />
+          {(!selected.fdrFiles || selected.fdrFiles.length === 0) && (
+            <Card style={{ textAlign: "center", padding: 24, marginTop: 12 }}>
+              <div style={{ fontSize: 32 }}>📑</div>
+              <p style={{ color: T.text3, margin: "6px 0 0", fontSize: 13 }}>Aucun document déposé</p>
+              <p style={{ color: T.text3, fontSize: 11, marginTop: 4 }}>Utilisez le bouton 📎 Document ci-dessus</p>
+            </Card>
+          )}
         </>
       )}
 
@@ -870,6 +873,8 @@ function AgendaScreen({ data, setData }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [evtForm, setEvtForm] = useState({ title: "", time: "09:00", duration: 60, type: "reunion", location: "" });
+  const [editEvt, setEditEvt] = useState(null);
+  const [editEvtForm, setEditEvtForm] = useState({ title: "", time: "", location: "", type: "reunion" });
   const [gcal, setGcal] = useState({ connected: false, events: [], loading: true });
   const [syncing, setSyncing] = useState(false);
 
@@ -925,6 +930,12 @@ function AgendaScreen({ data, setData }) {
 
   var deleteEvent = function(id) {
     setData(Object.assign({}, data, { agenda: allAgenda.filter(function(e) { return e.id !== id; }) }));
+  };
+
+  var saveEditEvt = function() {
+    if (!editEvtForm.title || !editEvt) return;
+    setData(Object.assign({}, data, { agenda: allAgenda.map(function(e) { return e.id === editEvt.id ? Object.assign({}, e, { title: editEvtForm.title, time: editEvtForm.time, location: editEvtForm.location, type: editEvtForm.type }) : e; }) }));
+    setEditEvt(null);
   };
 
   return (
@@ -985,11 +996,12 @@ function AgendaScreen({ data, setData }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{e.title}</div>
             {e.location && <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>📍 {e.location}</div>}
-            {isGoogle && <div style={{ fontSize: 10, color: "#4285F4", marginTop: 2 }}>📅 Google Calendar</div>}
-            {e.reunionId && <div style={{ fontSize: 10, color: T.info, marginTop: 2 }}>📋 Réunion de municipalité</div>}
           </div>
           {!e.reunionId && !isGoogle && (
-            <button onClick={function() { deleteEvent(e.id); }} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer", flexShrink: 0, alignSelf: "flex-start" }}>✕</button>
+            <div style={{ display: "flex", gap: 3, flexShrink: 0, alignSelf: "flex-start" }}>
+              <button onClick={function() { setEditEvt(e); setEditEvtForm({ title: e.title, time: e.time, location: e.location || '', type: e.type || 'reunion' }); }} style={{ fontSize: 10, color: T.accent, background: T.accentLight, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✏️</button>
+              <button onClick={function() { deleteEvent(e.id); }} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✕</button>
+            </div>
           )}
         </Card>
         );
@@ -1016,6 +1028,26 @@ function AgendaScreen({ data, setData }) {
             {gcal.connected && <span style={{ color: "#4285F4", marginLeft: 6 }}>+ Google Calendar</span>}
           </div>
           <button onClick={addEvent} style={btnStyle}>Ajouter</button>
+        </div>
+      </Modal>
+
+      <Modal open={!!editEvt} onClose={function() { setEditEvt(null); }} title="Modifier le rendez-vous">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input value={editEvtForm.title} onChange={function(e) { setEditEvtForm(Object.assign({}, editEvtForm, { title: e.target.value })); }} placeholder="Titre" style={inputStyle} autoFocus />
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="time" value={editEvtForm.time} onChange={function(e) { setEditEvtForm(Object.assign({}, editEvtForm, { time: e.target.value })); }} style={Object.assign({}, inputStyle, { flex: 1 })} />
+            <select value={editEvtForm.type} onChange={function(e) { setEditEvtForm(Object.assign({}, editEvtForm, { type: e.target.value })); }} style={Object.assign({}, inputStyle, { flex: 1, background: "#fff" })}>
+              <option value="reunion">Réunion</option>
+              <option value="commission">Commission</option>
+              <option value="permanence">Permanence</option>
+              <option value="conseil">Conseil</option>
+              <option value="formation">Formation</option>
+              <option value="visite">Visite</option>
+              <option value="appel">Appel</option>
+            </select>
+          </div>
+          <input value={editEvtForm.location} onChange={function(e) { setEditEvtForm(Object.assign({}, editEvtForm, { location: e.target.value })); }} placeholder="Lieu" style={inputStyle} />
+          <button onClick={saveEditEvt} style={btnStyle}>Enregistrer</button>
         </div>
       </Modal>
     </div>
