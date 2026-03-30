@@ -924,7 +924,7 @@ function AgendaScreen({ data, setData }) {
   var gcalEventsForDay = gcal.events.filter(function(e) { return e.date === selStr; });
   var localEvents = allAgenda.filter(function(e) { return e.date === selStr; });
   var allDayEvents = localEvents.concat(gcalEventsForDay.filter(function(g) {
-    return !localEvents.some(function(l) { return l.googleId === g.googleId; });
+    return !localEvents.some(function(l) { return l.googleId === g.googleId || (l.title === g.title && l.time === g.time); });
   })).sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
   var allEvtDates = {};
   allAgenda.forEach(function(e) { allEvtDates[e.date] = true; });
