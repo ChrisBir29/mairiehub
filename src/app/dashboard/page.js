@@ -277,10 +277,23 @@ function CommissionsScreen({ data, setData }) {
 
   /* Liste des commissions */
   if (!selected) {
+    const updateFdrGenerale = (files) => {
+      setData({ ...data, fdrGenerale: files });
+    };
     return (
       <div style={{ padding: "12px 14px" }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>Commissions</h1>
         <p style={{ fontSize: 12, color: T.text3, margin: "0 0 14px" }}>9 commissions municipales</p>
+
+        {/* Feuille de route générale */}
+        <Card style={{ padding: 12, marginBottom: 14, borderLeft: "3px solid " + T.accent }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>📑 Feuille de route générale</div>
+          </div>
+          <p style={{ fontSize: 11, color: T.text3, marginBottom: 8, lineHeight: 1.4 }}>Documents transversaux : feuille de route du mandat, PPI, programme municipal...</p>
+          <FileAttach files={data.fdrGenerale} onFilesChange={updateFdrGenerale} />
+        </Card>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {comms.map((cm) => {
             const days = daysUntil(cm.prochaine);
@@ -872,9 +885,9 @@ function AgendaScreen({ data, setData }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [evtForm, setEvtForm] = useState({ title: "", time: "09:00", duration: 60, type: "reunion", location: "" });
+  const [evtForm, setEvtForm] = useState({ title: "", time: "09:00", duration: 60, type: "reunion" });
   const [editEvt, setEditEvt] = useState(null);
-  const [editEvtForm, setEditEvtForm] = useState({ title: "", time: "", location: "", type: "reunion" });
+  const [editEvtForm, setEditEvtForm] = useState({ title: "", time: "", type: "reunion" });
   const [gcal, setGcal] = useState({ connected: false, events: [], loading: true });
   const [syncing, setSyncing] = useState(false);
 
@@ -919,12 +932,12 @@ function AgendaScreen({ data, setData }) {
 
   var addEvent = function() {
     if (!evtForm.title) return;
-    var newEvt = { id: Date.now(), title: evtForm.title, time: evtForm.time, duration: evtForm.duration, type: evtForm.type, location: evtForm.location, date: selStr };
+    var newEvt = { id: Date.now(), title: evtForm.title, time: evtForm.time, duration: evtForm.duration, type: evtForm.type, date: selStr };
     setData(Object.assign({}, data, { agenda: allAgenda.concat([newEvt]) }));
     if (gcal.connected) {
       fetch('/api/google/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newEvt) }).catch(function() {});
     }
-    setEvtForm({ title: "", time: "09:00", duration: 60, type: "reunion", location: "" });
+    setEvtForm({ title: "", time: "09:00", duration: 60, type: "reunion" });
     setShowAdd(false);
   };
 
@@ -934,7 +947,7 @@ function AgendaScreen({ data, setData }) {
 
   var saveEditEvt = function() {
     if (!editEvtForm.title || !editEvt) return;
-    setData(Object.assign({}, data, { agenda: allAgenda.map(function(e) { return e.id === editEvt.id ? Object.assign({}, e, { title: editEvtForm.title, time: editEvtForm.time, location: editEvtForm.location, type: editEvtForm.type }) : e; }) }));
+    setData(Object.assign({}, data, { agenda: allAgenda.map(function(e) { return e.id === editEvt.id ? Object.assign({}, e, { title: editEvtForm.title, time: editEvtForm.time, type: editEvtForm.type }) : e; }) }));
     setEditEvt(null);
   };
 
@@ -995,11 +1008,10 @@ function AgendaScreen({ data, setData }) {
           <div style={{ width: 3, borderRadius: 3, background: isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion), flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{e.title}</div>
-            {e.location && <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>📍 {e.location}</div>}
           </div>
-          {!e.reunionId && !isGoogle && (
+          {!isGoogle && (
             <div style={{ display: "flex", gap: 3, flexShrink: 0, alignSelf: "flex-start" }}>
-              <button onClick={function() { setEditEvt(e); setEditEvtForm({ title: e.title, time: e.time, location: e.location || '', type: e.type || 'reunion' }); }} style={{ fontSize: 10, color: T.accent, background: T.accentLight, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✏️</button>
+              <button onClick={function() { setEditEvt(e); setEditEvtForm({ title: e.title, time: e.time, type: e.type || 'reunion' }); }} style={{ fontSize: 10, color: T.accent, background: T.accentLight, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✏️</button>
               <button onClick={function() { deleteEvent(e.id); }} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✕</button>
             </div>
           )}
@@ -1022,7 +1034,6 @@ function AgendaScreen({ data, setData }) {
               <option value="appel">Appel</option>
             </select>
           </div>
-          <input value={evtForm.location} onChange={function(e) { setEvtForm(Object.assign({}, evtForm, { location: e.target.value })); }} placeholder="Lieu" style={inputStyle} />
           <div style={{ fontSize: 12, color: T.text3, padding: "4px 0" }}>
             📅 Sera ajouté le {fmtDate(selStr)}
             {gcal.connected && <span style={{ color: "#4285F4", marginLeft: 6 }}>+ Google Calendar</span>}
@@ -1046,7 +1057,6 @@ function AgendaScreen({ data, setData }) {
               <option value="appel">Appel</option>
             </select>
           </div>
-          <input value={editEvtForm.location} onChange={function(e) { setEditEvtForm(Object.assign({}, editEvtForm, { location: e.target.value })); }} placeholder="Lieu" style={inputStyle} />
           <button onClick={saveEditEvt} style={btnStyle}>Enregistrer</button>
         </div>
       </Modal>
