@@ -1000,16 +1000,17 @@ function AgendaScreen({ data, setData }) {
         </Card>
       ) : allDayEvents.map(function(e, idx) {
         var isGoogle = e.source === 'google';
+        var isND = e.isND || e.title === 'ND';
         return (
-        <Card key={e.id || e.googleId || idx} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10 }}>
+        <Card key={e.id || e.googleId || idx} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10, background: isND ? "#e5e7eb" : T.surface, opacity: isND ? 0.7 : 1 }}>
           <div style={{ minWidth: 44, textAlign: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{e.time}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: isND ? "#9ca3af" : T.text }}>{e.time}</span>
           </div>
-          <div style={{ width: 3, borderRadius: 3, background: isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion), flexShrink: 0 }} />
+          <div style={{ width: 3, borderRadius: 3, background: isND ? "#9ca3af" : (isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion)), flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{e.title}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word", color: isND ? "#9ca3af" : T.text, fontStyle: isND ? "italic" : "normal" }}>{isND ? "🚫 Non disponible" : e.title}</div>
           </div>
-          {!isGoogle && (
+          {!isGoogle && !isND && (
             <div style={{ display: "flex", gap: 3, flexShrink: 0, alignSelf: "flex-start" }}>
               <button onClick={function() { setEditEvt(e); setEditEvtForm({ title: e.title, time: e.time, type: e.type || 'reunion' }); }} style={{ fontSize: 10, color: T.accent, background: T.accentLight, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✏️</button>
               <button onClick={function() { deleteEvent(e.id); }} style={{ fontSize: 10, color: T.error, background: T.errorBg, border: "none", borderRadius: 5, padding: "3px 6px", cursor: "pointer" }}>✕</button>
