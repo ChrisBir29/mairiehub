@@ -1003,9 +1003,18 @@ function AgendaScreen({ data, setData }) {
         var isND = e.isND || e.title === 'ND';
         return (
         <Card key={e.id || e.googleId || idx} style={{ padding: 10, marginBottom: 6, display: "flex", gap: 10, background: isND ? "#e5e7eb" : T.surface, opacity: isND ? 0.7 : 1 }}>
-          <div style={{ minWidth: 44, textAlign: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: isND ? "#9ca3af" : T.text }}>{e.time}</span>
-          </div>
+          <div style={{ minWidth: 52, textAlign: "center", flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+  <span style={{ fontSize: 14, fontWeight: 700, color: isND ? "#9ca3af" : T.text, lineHeight: 1.1 }}>{e.time}</span>
+  {e.duration > 0 && (() => {
+    var h = parseInt(e.time.split(':')[0], 10);
+    var m = parseInt(e.time.split(':')[1], 10);
+    var total = h * 60 + m + e.duration;
+    var endH = Math.floor(total / 60) % 24;
+    var endM = total % 60;
+    var endTime = (endH < 10 ? '0' : '') + endH + ':' + (endM < 10 ? '0' : '') + endM;
+    return <span style={{ fontSize: 10, color: T.text3, lineHeight: 1.1, marginTop: 2 }}>→ {endTime}</span>;
+  })()}
+</div>
           <div style={{ width: 3, borderRadius: 3, background: isND ? "#9ca3af" : (isGoogle ? "#4285F4" : (evtColors[e.type] || evtColors.reunion)), flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word", color: isND ? "#9ca3af" : T.text, fontStyle: isND ? "italic" : "normal" }}>{isND ? "🚫 Non disponible" : e.title}</div>
